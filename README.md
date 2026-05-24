@@ -19,7 +19,7 @@ Windows returns an unsupported PTY error in v1.
 **Homebrew:**
 
 ```bash
-brew install --cask umputun/apps/fya
+brew install umputun/apps/fya
 ```
 
 **Binary releases:** download from [GitHub Releases](https://github.com/umputun/fya/releases) for linux/darwin amd64/arm64.
