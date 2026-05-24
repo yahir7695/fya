@@ -71,7 +71,7 @@ Recognized Claude launch flags are forwarded to interactive `claude`, including 
 
 ## Ralphex
 
-`fya` can be used in Ralphex as the `claude_command` while keeping the usual Claude-compatible arguments:
+`fya` can be used in [Ralphex](https://github.com/umputun/ralphex) as the `claude_command` while keeping the usual Claude-compatible arguments:
 
 ```ini
 claude_command = /path/to/fya
