@@ -1,0 +1,3 @@
+{"type":"content_block_delta","delta":{"type":"text_delta","text":"fixed the task\n"}}
+{"type":"content_block_delta","delta":{"type":"text_delta","text":"<<<RALPHEX:ALL_TASKS_DONE>>>"}}
+{"type":"result","subtype":"success","is_error":false,"result":"","session_id":"s1","num_turns":1,"terminal_reason":"end_turn"}

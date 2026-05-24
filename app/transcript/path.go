@@ -1,0 +1,209 @@
+// Package transcript discovers and tails Claude Code JSONL transcript files.
+package transcript
+
+import (
+	"bufio"
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+	"unicode"
+)
+
+// ErrNoTranscript is returned by Catalog.Select when no candidate transcript
+// matches the requested since/prompt filter. Callers may retry until a fresh
+// transcript appears (Claude can take a moment to flush the new file).
+var ErrNoTranscript = errors.New("no matching transcript found")
+
+// Catalog enumerates Claude Code transcript files for a given project working
+// dir. Select is the only cross-package entry point.
+type Catalog struct {
+	root string
+}
+
+// Candidate is one transcript JSONL file with its modification metadata.
+type Candidate struct {
+	Path    string
+	ModTime time.Time
+	Size    int64
+}
+
+// NewCatalog returns a Catalog rooted at the given Claude config dir. An empty
+// root falls back to ~/.claude (or the OS-specific user home).
+func NewCatalog(root string) *Catalog {
+	if root == "" {
+		home, _ := os.UserHomeDir()
+		root = filepath.Join(home, ".claude")
+	}
+	return &Catalog{root: root}
+}
+
+// projectDir returns the encoded project directory under root/projects for the
+// supplied working directory. The cwd is resolved to an absolute path first.
+func (c *Catalog) projectDir(cwd string) (string, error) {
+	abs, err := filepath.Abs(cwd)
+	if err != nil {
+		return "", fmt.Errorf("resolve cwd: %w", err)
+	}
+	return filepath.Join(c.root, "projects", encodeProjectPath(abs)), nil
+}
+
+// candidates lists all .jsonl transcripts in the project directory for cwd,
+// sorted by modification time newest-first. A missing project directory (Claude
+// has not yet created it for this cwd) is returned as an empty list with no
+// error so selectors can retry until the first transcript appears.
+func (c *Catalog) candidates(cwd string) ([]Candidate, error) {
+	dir, err := c.projectDir(cwd)
+	if err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read transcript dir: %w", err)
+	}
+	candidates := make([]Candidate, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".jsonl" {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return nil, fmt.Errorf("stat transcript: %w", err)
+		}
+		candidates = append(candidates, Candidate{
+			Path:    filepath.Join(dir, entry.Name()),
+			ModTime: info.ModTime(),
+			Size:    info.Size(),
+		})
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].ModTime.After(candidates[j].ModTime)
+	})
+	return candidates, nil
+}
+
+// Select returns the most recent transcript in cwd that was modified at or after
+// `since` and (when prompt is non-empty) contains the prompt text. Returns
+// ErrNoTranscript when no candidate satisfies the filter; callers can retry as
+// Claude may not have flushed the new transcript yet.
+//
+// Prompt matching checks two forms because the transcript stores the prompt as
+// a JSON-encoded string: a raw search ("hello world") and a JSON-string-encoded
+// search ("hello \"world\"") so prompts with quotes, backslashes, or newlines
+// still match.
+func (c *Catalog) Select(cwd string, since time.Time, prompt string) (Candidate, error) {
+	candidates, err := c.candidates(cwd)
+	if err != nil {
+		return Candidate{}, err
+	}
+	forms := promptForms(prompt)
+	for _, candidate := range candidates {
+		if candidate.ModTime.Before(since) {
+			continue
+		}
+		if prompt == "" {
+			return candidate, nil
+		}
+		matches, err := fileContainsAny(candidate.Path, forms)
+		if err != nil {
+			return Candidate{}, fmt.Errorf("scan transcript %s: %w", candidate.Path, err)
+		}
+		if matches {
+			return candidate, nil
+		}
+	}
+	return Candidate{}, ErrNoTranscript
+}
+
+// promptForms returns the raw prompt plus its JSON-string-encoded form (minus
+// the surrounding quotes) so transcripts written with JSON escaping still match.
+// Duplicates (when the prompt has no characters needing escaping) are removed.
+func promptForms(prompt string) []string {
+	if prompt == "" {
+		return nil
+	}
+	forms := []string{prompt}
+	encoded, err := json.Marshal(prompt)
+	if err == nil && len(encoded) >= 2 {
+		body := string(encoded[1 : len(encoded)-1]) // strip surrounding quotes
+		if body != prompt {
+			forms = append(forms, body)
+		}
+	}
+	return forms
+}
+
+// encodeProjectPath returns the Claude Code project directory encoding of path:
+// every rune that is not a letter or digit becomes '-'. Matches Claude Code's
+// internal encoding so cwd "/Users/x/repo" → "-Users-x-repo".
+func encodeProjectPath(path string) string {
+	var b strings.Builder
+	for _, r := range path {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(r)
+			continue
+		}
+		b.WriteByte('-')
+	}
+	return b.String()
+}
+
+// fileContainsAny streams path looking for any of the needles and returns true
+// on the first match. The overlap window between chunk reads is sized to the
+// longest needle so a match split across a read boundary is not missed. Read
+// errors are surfaced rather than silently treated as "no match" — permission
+// errors or partial reads otherwise hide real problems.
+func fileContainsAny(path string, needles []string) (bool, error) {
+	if len(needles) == 0 {
+		return false, nil
+	}
+	f, err := os.Open(path) //nolint:gosec // path is built by Catalog from a controlled ProjectDir.
+	if err != nil {
+		return false, fmt.Errorf("open transcript: %w", err)
+	}
+	defer f.Close()
+	needleBytes := make([][]byte, len(needles))
+	maxLen := 0
+	for i, n := range needles {
+		needleBytes[i] = []byte(n)
+		if len(needleBytes[i]) > maxLen {
+			maxLen = len(needleBytes[i])
+		}
+	}
+	overlap := max(maxLen, 256) // floor at 256 preserves the historical minimum window.
+	reader := bufio.NewReaderSize(f, 64*1024)
+	tail := make([]byte, 0, overlap)
+	buf := make([]byte, 32*1024)
+	for {
+		n, readErr := reader.Read(buf)
+		if n > 0 {
+			scan := append(tail, buf[:n]...) //nolint:gocritic // overlap window across chunks.
+			for _, needle := range needleBytes {
+				if bytes.Contains(scan, needle) {
+					return true, nil
+				}
+			}
+			if len(scan) > overlap {
+				tail = append(tail[:0], scan[len(scan)-overlap:]...)
+			} else {
+				tail = append(tail[:0], scan...)
+			}
+		}
+		if errors.Is(readErr, io.EOF) {
+			return false, nil
+		}
+		if readErr != nil {
+			return false, fmt.Errorf("read transcript: %w", readErr)
+		}
+	}
+}

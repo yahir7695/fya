@@ -1,0 +1,45 @@
+# binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+.bin/
+/fya
+
+# test files
+*.test
+*.prof
+coverage.out
+coverage_no_mocks.out
+profile.cov
+
+# ide and editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# os files
+.DS_Store
+Thumbs.db
+
+# build artifacts
+dist/
+
+# local configuration
+.env
+.env.local
+*.local.yml
+*.local.yaml
+
+# claude/pi project files
+.claude/
+.pi/
+
+# debug
+__debug_bin*
+
+# ralphex progress logs
+.ralphex/progress/
