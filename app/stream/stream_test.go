@@ -3,6 +3,7 @@ package stream
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -34,7 +35,16 @@ func TestTextOutput(t *testing.T) {
 	require.NoError(t, w.Text("hello"))
 	require.NoError(t, w.Final(Result{}))
 
-	assert.Equal(t, "hello", out.String())
+	assert.Equal(t, "hello\n", out.String())
+}
+
+func TestTextOutputKeepsExistingNewline(t *testing.T) {
+	var out bytes.Buffer
+	w := NewWriter(&out, Config{Format: FormatText})
+
+	require.NoError(t, w.Final(Result{Result: "hello\n"}))
+
+	assert.Equal(t, "hello\n", out.String())
 }
 
 func TestDefaultOutputFormatIsText(t *testing.T) {
@@ -43,7 +53,7 @@ func TestDefaultOutputFormatIsText(t *testing.T) {
 
 	require.NoError(t, w.Final(Result{Result: "hello"}))
 
-	assert.Equal(t, "hello", out.String())
+	assert.Equal(t, "hello\n", out.String())
 }
 
 func TestJSONOutput(t *testing.T) {
@@ -66,7 +76,7 @@ func TestFinalIsIdempotent(t *testing.T) {
 	require.NoError(t, w.Final(Result{Result: "one"}))
 	require.NoError(t, w.Final(Result{Result: "two"}))
 
-	assert.Equal(t, "one", out.String(), "subsequent Final calls are no-ops")
+	assert.Equal(t, "one\n", out.String(), "subsequent Final calls are no-ops")
 }
 
 func TestUnsupportedOutputFormat(t *testing.T) {
@@ -79,6 +89,43 @@ func TestUnsupportedOutputFormatOnFinal(t *testing.T) {
 	w := NewWriter(&bytes.Buffer{}, Config{Format: "xml"})
 
 	require.Error(t, w.Final(Result{Result: "hello"}))
+}
+
+func TestTextOutputWriteError(t *testing.T) {
+	w := NewWriter(errWriter{}, Config{Format: FormatText})
+
+	err := w.Final(Result{Result: "hello"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "write text result")
+}
+
+func TestTextOutputNewlineWriteError(t *testing.T) {
+	w := NewWriter(&errAfterWriter{failAfter: 1}, Config{Format: FormatText})
+
+	err := w.Final(Result{Result: "hello"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "write text result newline")
+}
+
+type errWriter struct{}
+
+func (errWriter) Write(_ []byte) (int, error) {
+	return 0, errors.New("write failed")
+}
+
+type errAfterWriter struct {
+	writes    int
+	failAfter int
+}
+
+func (w *errAfterWriter) Write(p []byte) (int, error) {
+	w.writes++
+	if w.writes > w.failAfter {
+		return 0, errors.New("write failed")
+	}
+	return len(p), nil
 }
 
 func decodeLine(t *testing.T, line string) map[string]any {
