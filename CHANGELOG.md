@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.1 - 2026-05-30
+
+### Bug Fixes
+
+- Fix fya one-shot completion edge cases: prompt source selection no longer blocks on open stdin, tool-use turns wait for the post-tool `end_turn`, and text output ends with one newline.
+
 ## v0.2.0 - 2026-05-29
 
 ### New Features
