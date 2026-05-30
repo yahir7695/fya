@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.2.0 - 2026-05-29
+
+### New Features
+
+- `--max-wpm-size` flag: paste prompts longer than N words (default 100) in a single write instead of typing them rune-by-rune, removing the multi-minute typing latency on large prompts. `--max-wpm-size=0` keeps rune-by-rune typing.
+
+### Improvements
+
+- Normalize internal CRLF and lone CR to LF when resolving the prompt, so a bare carriage return cannot submit a multiline prompt early.
+- Internal cleanups to helper ownership and wrapper plumbing.
+
 ## v0.1.1 - 2026-05-24
 
 ### Bug Fixes
