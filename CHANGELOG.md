@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.3 - 2026-05-31
+
+### Bug Fixes
+
+- Preserve stream-json delta text so delta-only assistant transcript records emit real text instead of empty assistant events.
+
 ## v0.2.2 - 2026-05-31
 
 ### Bug Fixes
