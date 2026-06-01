@@ -85,7 +85,7 @@ func (p *parser) streamMessage(event Event, raw map[string]any) json.RawMessage 
 		return nil
 	}
 	msg, ok := raw["message"]
-	if !ok {
+	if !ok || !p.messageHasContent(msg) {
 		return nil
 	}
 	data, err := json.Marshal(msg)
@@ -93,6 +93,21 @@ func (p *parser) streamMessage(event Event, raw map[string]any) json.RawMessage 
 		return nil
 	}
 	return data
+}
+
+func (*parser) messageHasContent(msg any) bool {
+	m, ok := msg.(map[string]any)
+	if !ok {
+		return false
+	}
+	switch content := m["content"].(type) {
+	case string:
+		return content != ""
+	case []any:
+		return len(content) > 0
+	default:
+		return false
+	}
 }
 
 func (p *parser) stopReason(raw map[string]any) string {

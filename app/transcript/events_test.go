@@ -80,6 +80,7 @@ func TestParserAssistantDeltaText(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "streamed chunk", event.Text)
+	assert.Empty(t, event.Message, "delta-only message shell should not suppress text streaming")
 }
 
 func TestTrackerAndCompletion(t *testing.T) {

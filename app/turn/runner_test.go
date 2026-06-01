@@ -347,6 +347,49 @@ func TestRunnerIdleCompletion(t *testing.T) {
 	assert.Equal(t, "s2", output.FinalCalls()[0].Result.SessionID)
 }
 
+func TestRunnerEmitsDeltaTextWithoutStreamMessage(t *testing.T) {
+	var texts []string
+	var events []stream.Event
+	output := &mocks.OutputMock{
+		EventFunc: func(event stream.Event) error {
+			events = append(events, event)
+			return nil
+		},
+		TextFunc: func(text string) error {
+			texts = append(texts, text)
+			return nil
+		},
+		FinalFunc: func(stream.Result) error { return nil },
+	}
+	runner := turn.NewRunner(turn.Dependencies{
+		ProcessStarter: &mocks.ProcessStarterMock{StartFunc: func(context.Context, ptyrun.Config) (turn.Session, error) {
+			return newSessionMock(), nil
+		}},
+		Readiness: &mocks.ReadinessMock{WaitFunc: func(context.Context, ready.Source) (ready.Result, error) {
+			return ready.Result{Ready: true}, nil
+		}},
+		Injector: &mocks.InjectorMock{TypeFunc: func(context.Context, io.Writer, string) error { return nil }},
+		Catalog: &mocks.CatalogMock{SelectFunc: func(string, time.Time, string) (string, error) {
+			return "x.jsonl", nil
+		}},
+		TailerFactory: func(string) turn.Tailer {
+			return &mocks.TailerMock{ReadNewFunc: func() ([]transcript.Event, error) {
+				return []transcript.Event{{Type: "assistant", Text: "streamed chunk", Result: true, SessionID: "s"}}, nil
+			}}
+		},
+		Output: output,
+	})
+
+	err := runner.Run(t.Context(), turn.Config{
+		CWD: ".", TurnTimeout: time.Minute, IdleTimeout: time.Second, StreamEvents: true,
+		Prompt: "hi",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"streamed chunk"}, texts)
+	assert.Empty(t, events)
+}
+
 func TestRunnerEmitsStreamMessageEvents(t *testing.T) {
 	var events []stream.Event
 	output := &mocks.OutputMock{
