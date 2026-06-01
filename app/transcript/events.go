@@ -7,13 +7,15 @@ import (
 )
 
 // Event is one parsed Claude Code transcript JSONL record. Text is non-empty only
-// for assistant content that should be streamed to the consumer; user records and
-// result records do not populate Text. Result is true for terminal "result" events.
+// for assistant content that should be streamed to the consumer. Result is true
+// for terminal "result" events.
 type Event struct {
 	Type          string
+	Subtype       string
 	Text          string
 	SessionID     string
 	StopReason    string
+	Message       json.RawMessage
 	ToolUseIDs    []string
 	ToolResultIDs []string
 	Result        bool
@@ -30,13 +32,15 @@ func (p *parser) parse(line []byte) (Event, error) {
 	}
 	event := Event{
 		Type:       p.stringField(raw, "type"),
-		SessionID:  p.stringField(raw, "sessionId"),
+		Subtype:    p.stringField(raw, "subtype"),
+		SessionID:  p.sessionID(raw),
 		StopReason: p.stopReason(raw),
 	}
 	event.Text = p.extractText(event.Type, raw)
 	event.ToolUseIDs = p.toolIDs(raw, "tool_use")
 	event.ToolResultIDs = p.toolIDs(raw, "tool_result")
-	event.Result = event.Type == "result"
+	event.Message = p.streamMessage(event, raw)
+	event.Result = event.Type == "result" || (event.Type == "system" && event.Subtype == "turn_duration")
 	return event, nil
 }
 
@@ -67,6 +71,28 @@ func (p *parser) isAssistant(eventType string, raw map[string]any) bool {
 	}
 	msg, ok := raw["message"].(map[string]any)
 	return ok && p.stringField(msg, "role") == "assistant"
+}
+
+func (p *parser) sessionID(raw map[string]any) string {
+	if id := p.stringField(raw, "session_id"); id != "" {
+		return id
+	}
+	return p.stringField(raw, "sessionId")
+}
+
+func (p *parser) streamMessage(event Event, raw map[string]any) json.RawMessage {
+	if event.Type != "assistant" && (event.Type != "user" || len(event.ToolResultIDs) == 0) {
+		return nil
+	}
+	msg, ok := raw["message"]
+	if !ok {
+		return nil
+	}
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return nil
+	}
+	return data
 }
 
 func (p *parser) stopReason(raw map[string]any) string {
